@@ -14,6 +14,19 @@ This project solves that by giving every test run a permanent home, and letting 
 - **TestCase** — a single, standing test (e.g. `test_login`), tracked once, regardless of how many times it's actually run.
 - **TestResult** — the outcome of one specific test, within one specific run (pass/fail). Connects a TestRun and a TestCase together.
 
+## Database Setup
+
+Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with other local projects). Run `docker compose up` to start it.
+
+## Progress
+
+- [x] Project design and problem statement
+- [x] Spring Boot project setup (Web, JPA, Postgres, Validation)
+- [x] Entities created: `TestCase`, `TestRun`, `TestResult` — schema confirmed working, including the double foreign key relationship on `TestResult`
+- [ ] Ingest endpoint (`POST /api/test-runs`)
+- [ ] Query endpoints
+- [ ] JWT authentication
+
 ## Planned Endpoints
 
 - `POST /api/test-runs` — receive a new test run (webhook from CI), with all its individual results
