@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class TestRunService {
 
@@ -22,22 +24,20 @@ public class TestRunService {
         this.testResultRepository = testResultRepository;
     }
 
-    @Transactional                                                       // everything below runs as one all-or-nothing unit
+    @Transactional
     public TestRun ingestTestRun(TestRunRequest request) {
 
         logger.info("Ingesting test run for pipeline: {}", request.getPipelineName());
 
-        // Step 1 — create and save the run itself
         TestRun testRun = new TestRun();
         testRun.setPipelineName(request.getPipelineName());
         testRun.setRanAt(request.getRanAt());
         testRun = testRunRepository.save(testRun);
 
-        // Step 2 — for each result in the request, find-or-create the matching test case, then save the result
         for (TestResultRequest resultRequest : request.getResults()) {
 
             TestCase testCase = testCaseRepository.findByName(resultRequest.getTestName())
-                    .orElseGet(() -> {                                    // if not found, create a brand-new one
+                    .orElseGet(() -> {
                         TestCase newCase = new TestCase();
                         newCase.setName(resultRequest.getTestName());
                         return testCaseRepository.save(newCase);
@@ -53,5 +53,39 @@ public class TestRunService {
         logger.info("Successfully ingested {} results for run id {}", request.getResults().size(), testRun.getId());
 
         return testRun;
+    }
+
+    public List<TestRun> getAllTestRuns() {
+        return testRunRepository.findAll();
+    }
+
+    public TestRun getTestRunById(Long id) {
+        return testRunRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Test run not found with id: " + id));
+    }
+
+    public TestFlakinessResponse getTestHistory(String testName) {
+
+        // Step 1 — find the test case by name
+        TestCase testCase = testCaseRepository.findByName(testName)
+                .orElseThrow(() -> new RuntimeException("Test not found with name: " + testName));
+
+        // Step 2 — fetch every result for this test case, newest first
+        List<TestResult> history = testResultRepository.findByTestCaseIdWithRun(testCase.getId());
+
+        // Step 3 — calculate the numbers
+        int totalRuns = history.size();
+        long passedRuns = history.stream().filter(TestResult::isPassed).count();
+        double passRate = totalRuns == 0 ? 0.0 : (passedRuns * 100.0) / totalRuns;
+
+        // Step 4 — build the response
+        TestFlakinessResponse response = new TestFlakinessResponse();
+        response.setTestName(testName);
+        response.setTotalRuns(totalRuns);
+        response.setPassedRuns((int) passedRuns);
+        response.setPassRate(passRate);
+        response.setHistory(history);
+
+        return response;
     }
 }
