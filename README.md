@@ -23,7 +23,8 @@ Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with 
 - [x] Project design and problem statement
 - [x] Spring Boot project setup (Web, JPA, Postgres, Validation)
 - [x] Entities created: `TestCase`, `TestRun`, `TestResult` — schema confirmed working, including the double foreign key relationship on `TestResult`
-- [x] Ingest endpoint (POST /api/test-runs) — validated, transactional, tested with multi-result payload- [ ] Query endpoints
+- [x] Ingest endpoint (POST /api/test-runs) — validated, transactional, tested with multi-result payload
+- [x] Query endpoints — list runs, get run by id, and test flakiness history (pass rate + full history), using a fetch join to avoid N+1
 - [ ] JWT authentication
 
 ## Planned Endpoints
