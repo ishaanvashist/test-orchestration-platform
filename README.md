@@ -25,7 +25,7 @@ Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with 
 - [x] Entities created: `TestCase`, `TestRun`, `TestResult` — schema confirmed working, including the double foreign key relationship on `TestResult`
 - [x] Ingest endpoint (POST /api/test-runs) — validated, transactional, tested with multi-result payload
 - [x] Query endpoints — list runs, get run by id, and test flakiness history (pass rate + full history), using a fetch join to avoid N+1
-- [ ] JWT authentication
+- [x] JWT authentication — login endpoint issues tokens, all other endpoints require a valid token, tested end-to-end
 
 ## Planned Endpoints
 
