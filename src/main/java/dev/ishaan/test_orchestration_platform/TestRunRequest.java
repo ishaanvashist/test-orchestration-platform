@@ -3,6 +3,7 @@ package dev.ishaan.test_orchestration_platform;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.PastOrPresent;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,6 +13,7 @@ public class TestRunRequest {
     @NotBlank(message = "Pipeline name cannot be blank")
     private String pipelineName;
 
+    @PastOrPresent(message = "ranAt cannot be in the future")
     private LocalDateTime ranAt;
 
     @NotEmpty(message = "A test run must include at least one result")

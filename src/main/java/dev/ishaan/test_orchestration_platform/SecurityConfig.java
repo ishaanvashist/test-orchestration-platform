@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()              // login itself needs no token
+                        .requestMatchers("/error").permitAll()                       // internal error path, no token available here
                         .anyRequest().authenticated()                                 // everything else requires one
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);  // run our filter first
