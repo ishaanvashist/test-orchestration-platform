@@ -29,7 +29,7 @@ Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with 
 - [x] Input validation — `@PastOrPresent` on run timestamps, `@Size` limits on test names
 - [x] Rate limiting — login endpoint capped via Bucket4j (5 attempts/minute per IP), tested by hammering the endpoint
 - [ ] JWT refresh tokens
-- [ ] Secrets management audit
+- [x] Secrets management audit — JWT signing key fixed to use environment variable, no longer regenerates on restart
 - [ ] Full OWASP self-audit documented
 
 ## Planned Endpoints
@@ -67,3 +67,6 @@ Spring Data JPA's standard query methods (`findByX`, `@Query` with named paramet
 
 ### Rate Limiting
 Implemented using Bucket4j's token bucket algorithm — each IP gets a bucket of 5 tokens, one consumed per request, refilling over time. Prevents brute-force login attempts and controls cost/abuse independent of malicious intent. Applied before the username/password check, so excessive attempts are rejected without doing any real work (database lookups, password hashing).
+
+### Secrets Management & Encryption
+No secrets belong in source code or committed config — following the same environment-variable pattern established for `task-api`'s database credentials (Day 29). Applied here to fix a real gap found during the OWASP audit: the JWT signing key was regenerating randomly on every app restart (a Cryptographic Failure), silently invalidating every issued token. Fixed by deriving the key from a `JWT_SECRET` environment variable (with a clearly-marked, dev-only fallback for local use), so the same key persists across restarts — verified by confirming a token issued before a restart still works correctly after one. Also covered encryption in transit (TLS/HTTPS, already in use via Neon's `sslmode=require`) vs. encryption at rest (database-level) as two genuinely separate protections — one covers data while traveling, the other while stored, and neither substitutes for the other.
