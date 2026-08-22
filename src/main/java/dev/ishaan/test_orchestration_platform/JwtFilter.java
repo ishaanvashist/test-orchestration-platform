@@ -5,11 +5,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {
@@ -31,10 +33,13 @@ public class JwtFilter extends OncePerRequestFilter {
 
             if (jwtUtil.isTokenValid(token)) {
                 String username = jwtUtil.extractUsername(token);
+                String role = jwtUtil.extractRole(token);                    // read the role out of the token
+
+                var authority = new SimpleGrantedAuthority("ROLE_" + role);  // Spring Security's expected format
 
                 UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(username, null, java.util.Collections.emptyList());
-                SecurityContextHolder.getContext().setAuthentication(authToken);  // mark this request as authenticated
+                        new UsernamePasswordAuthenticationToken(username, null, List.of(authority));
+                SecurityContextHolder.getContext().setAuthentication(authToken);  // mark this request as authenticated, with its role
             }
         }
 

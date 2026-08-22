@@ -17,8 +17,8 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         if (userRepository.findByUsername("admin").isEmpty()) {           // only create if it doesn't already exist
-            userService.createUser("admin", "password123");
-            System.out.println("Seeded test user: admin / password123");
+            userService.createUser("admin", "password123", "ADMIN");
+            System.out.println("Seeded test user: admin / password123 (ADMIN role)");
         }
     }
 

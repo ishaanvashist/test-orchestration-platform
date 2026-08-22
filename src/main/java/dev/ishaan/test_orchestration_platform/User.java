@@ -21,6 +21,8 @@ public class User {
     @NotBlank(message = "Password cannot be blank")
     private String password;                                              // stored encrypted, never as plain text
 
+    private String role = "USER";                                         // "USER" or "ADMIN", defaults to USER
+
     public User() {
     }
 
@@ -32,4 +34,7 @@ public class User {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }

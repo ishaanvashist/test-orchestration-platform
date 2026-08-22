@@ -14,10 +14,11 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public User createUser(String username, String rawPassword) {
+    public User createUser(String username, String rawPassword, String role) {
         User user = new User();
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(rawPassword));            // hash BEFORE saving, never save raw
+        user.setRole(role);
         return userRepository.save(user);
     }
 

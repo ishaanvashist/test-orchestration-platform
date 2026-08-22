@@ -48,7 +48,8 @@ public class AuthController {
                     .body(Map.of("error", "Invalid username or password"));
         }
 
-        String token = jwtUtil.generateToken(username);
+        String role = userOptional.get().getRole();                      // fetch this user's actual role
+        String token = jwtUtil.generateToken(username, role);            // pass it along when creating the token
         return ResponseEntity.ok(Map.of("token", token));
     }
 

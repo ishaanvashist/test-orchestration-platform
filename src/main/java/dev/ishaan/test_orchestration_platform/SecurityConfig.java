@@ -2,6 +2,7 @@ package dev.ishaan.test_orchestration_platform;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -33,7 +34,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()              // login itself needs no token
                         .requestMatchers("/error").permitAll()                       // internal error path, no token available here
-                        .anyRequest().authenticated()                                 // everything else requires one
+                        .requestMatchers(HttpMethod.POST, "/api/test-runs").hasRole("ADMIN")  // only admins can create runs
+                        .anyRequest().authenticated()                                 // everything else just requires login
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);  // run our filter first
 
