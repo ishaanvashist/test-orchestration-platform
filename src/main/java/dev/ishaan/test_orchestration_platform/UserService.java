@@ -15,9 +15,12 @@ public class UserService {
     }
 
     public User createUser(String username, String rawPassword, String role) {
+        if (rawPassword == null || rawPassword.length() < 8) {             // reject weak passwords upfront
+            throw new IllegalArgumentException("Password must be at least 8 characters long");
+        }
         User user = new User();
         user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(rawPassword));            // hash BEFORE saving, never save raw
+        user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(role);
         return userRepository.save(user);
     }
