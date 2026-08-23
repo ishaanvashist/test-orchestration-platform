@@ -59,8 +59,20 @@ Access tokens are deliberately short-lived to limit damage if stolen; a separate
 ### SQL vs. NoSQL
 SQL's enforced foreign key constraints are a deliberate fit for this project specifically, since its core value (accurate flakiness calculation) depends on `TestResult` rows never silently pointing at nonexistent runs or test cases — a risk NoSQL's typically unenforced references would allow.
 
-### OWASP Top 10 (2025) Self-Audit
-Audited against the current OWASP Top 10; real gaps found and tracked: no per-user authorization (Broken Access Control), hardcoded test credentials (Security Misconfiguration), no dependency vulnerability scanning (Supply Chain Failures), JWT signing key regenerates on every restart (Cryptographic Failures), no rate limiting on login — **fixed** (Insecure Design), no password strength requirements (Authentication Failures), no CI dependency verification (Integrity Failures), failed logins not logged (Logging & Alerting Failures).
+### OWASP Top 10 (2025) Self-Audit — Full Status
+
+Audited against the current OWASP Top 10 on Day 36. All 8 real findings, with final status:
+
+- **Broken Access Control** — **Fixed.** Added role-based authorization (`USER`/`ADMIN`); test run creation now requires the `ADMIN` role, enforced via a role embedded in the JWT and checked in `SecurityConfig`.
+- **Security Misconfiguration** — **Fixed.** Seed admin password moved to `SEED_ADMIN_PASSWORD` environment variable, following the same pattern as `JWT_SECRET` and database credentials.
+- **Software Supply Chain Failures** — **Deferred, documented.** Requires a dependency-scanning tool (e.g. OWASP Dependency-Check) added to the build process — a setup task, not an application code change. Not yet implemented.
+- **Cryptographic Failures** — **Fixed** (Day 39). JWT signing key now persists across restarts via `JWT_SECRET` environment variable, instead of regenerating randomly on every startup.
+- **Insecure Design** — **Fixed** (Day 38). Login endpoint rate-limited via Bucket4j (5 attempts/minute per IP).
+- **Authentication Failures** — **Fixed.** Minimum 8-character password length enforced in `UserService.createUser`.
+- **Software or Data Integrity Failures** — **Deferred, documented.** Requires checksum/signature verification on CI dependency downloads — a build-process change, not application code. Not yet implemented.
+- **Security Logging and Alerting Failures** — **Fixed.** Failed login attempts now logged with username and source IP, verified live.
+
+**6 of 8 findings fixed with real, tested code. 2 remain as honestly-documented, deferred build-process improvements.**
 
 ### Input Validation & SQL Injection Defense
 Spring Data JPA's standard query methods (`findByX`, `@Query` with named parameters) are safe against SQL injection by default, since they always send user input as a separate parameter rather than concatenating it into the SQL command text. Added `@PastOrPresent` and `@Size` validation to close real gaps found in the OWASP audit. Along the way, found and fixed a real security config bug: Spring's internal `/error` redirect (used to report validation failures) was itself being blocked by `.anyRequest().authenticated()`, silently turning every validation error into a misleading 403 instead of the correct 400.
