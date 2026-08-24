@@ -82,3 +82,13 @@ Implemented using Bucket4j's token bucket algorithm — each IP gets a bucket of
 
 ### Secrets Management & Encryption
 No secrets belong in source code or committed config — following the same environment-variable pattern established for `task-api`'s database credentials (Day 29). Applied here to fix a real gap found during the OWASP audit: the JWT signing key was regenerating randomly on every app restart (a Cryptographic Failure), silently invalidating every issued token. Fixed by deriving the key from a `JWT_SECRET` environment variable (with a clearly-marked, dev-only fallback for local use), so the same key persists across restarts — verified by confirming a token issued before a restart still works correctly after one. Also covered encryption in transit (TLS/HTTPS, already in use via Neon's `sslmode=require`) vs. encryption at rest (database-level) as two genuinely separate protections — one covers data while traveling, the other while stored, and neither substitutes for the other.
+
+
+## Security
+
+- **Authentication:** JWT-based, with role-based authorization (`USER`/`ADMIN`). Test run creation is restricted to `ADMIN`.
+- **Rate limiting:** login endpoint capped at 5 attempts/minute per IP (Bucket4j).
+- **Secrets:** JWT signing key and seed admin password both externalized via environment variables (`JWT_SECRET`, `SEED_ADMIN_PASSWORD`), never hardcoded.
+- **Input validation:** `@PastOrPresent` on run timestamps, `@Size` limits on test names.
+- **Logging:** failed login attempts logged with username and source IP.
+- **OWASP Top 10 (2025) self-audit:** 6 of 8 findings fixed (see Concepts Learned for full detail). Open: dependency vulnerability scanning, CI dependency integrity verification — both require build-process tooling, not application code.
