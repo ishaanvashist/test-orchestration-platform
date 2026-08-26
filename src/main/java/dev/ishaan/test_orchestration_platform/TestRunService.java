@@ -2,6 +2,7 @@ package dev.ishaan.test_orchestration_platform;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +65,10 @@ public class TestRunService {
                 .orElseThrow(() -> new RuntimeException("Test run not found with id: " + id));
     }
 
+    @Cacheable(value = "testHistory", key = "#testName")                  // cache the result, using the test name as the lookup key
     public TestFlakinessResponse getTestHistory(String testName) {
+
+        logger.info("Fetching test history from DATABASE for: {}", testName);   // temporary, to prove caching works
 
         // Step 1 — find the test case by name
         TestCase testCase = testCaseRepository.findByName(testName)
