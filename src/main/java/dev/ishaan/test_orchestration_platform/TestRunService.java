@@ -16,13 +16,16 @@ public class TestRunService {
     private final TestRunRepository testRunRepository;
     private final TestCaseRepository testCaseRepository;
     private final TestResultRepository testResultRepository;
+    private final CacheEvictionService cacheEvictionService;
 
     public TestRunService(TestRunRepository testRunRepository,
                           TestCaseRepository testCaseRepository,
-                          TestResultRepository testResultRepository) {
+                          TestResultRepository testResultRepository,
+                          CacheEvictionService cacheEvictionService) {
         this.testRunRepository = testRunRepository;
         this.testCaseRepository = testCaseRepository;
         this.testResultRepository = testResultRepository;
+        this.cacheEvictionService = cacheEvictionService;
     }
 
     @Transactional
@@ -49,6 +52,8 @@ public class TestRunService {
             testResult.setTestCase(testCase);
             testResult.setPassed(resultRequest.isPassed());
             testResultRepository.save(testResult);
+
+            cacheEvictionService.evictTestHistoryCache(resultRequest.getTestName());  // genuine cross-object call, correctly proxied
         }
 
         logger.info("Successfully ingested {} results for run id {}", request.getResults().size(), testRun.getId());
@@ -65,24 +70,20 @@ public class TestRunService {
                 .orElseThrow(() -> new RuntimeException("Test run not found with id: " + id));
     }
 
-    @Cacheable(value = "testHistory", key = "#testName")                  // cache the result, using the test name as the lookup key
+    @Cacheable(value = "testHistory", key = "#testName")
     public TestFlakinessResponse getTestHistory(String testName) {
 
-        logger.info("Fetching test history from DATABASE for: {}", testName);   // temporary, to prove caching works
+        logger.info("Fetching test history from DATABASE for: {}", testName);
 
-        // Step 1 — find the test case by name
         TestCase testCase = testCaseRepository.findByName(testName)
                 .orElseThrow(() -> new RuntimeException("Test not found with name: " + testName));
 
-        // Step 2 — fetch every result for this test case, newest first
         List<TestResult> history = testResultRepository.findByTestCaseIdWithRun(testCase.getId());
 
-        // Step 3 — calculate the numbers
         int totalRuns = history.size();
         long passedRuns = history.stream().filter(TestResult::isPassed).count();
         double passRate = totalRuns == 0 ? 0.0 : (passedRuns * 100.0) / totalRuns;
 
-        // Step 4 — build the response
         TestFlakinessResponse response = new TestFlakinessResponse();
         response.setTestName(testName);
         response.setTotalRuns(totalRuns);
