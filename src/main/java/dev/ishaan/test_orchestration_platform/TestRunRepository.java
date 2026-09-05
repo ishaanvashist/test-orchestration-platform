@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TestRunRepository extends JpaRepository<TestRun, Long> {
 
-    Page<TestRun> findAll(Pageable pageable);          // returns one page of results, instead of everything
+    Page<TestRun> findAll(Pageable pageable);
+
+    Page<TestRun> findByPipelineNameContainingIgnoreCase(String pipelineName, Pageable pageable);  // filter by partial, case-insensitive name match
 
 }

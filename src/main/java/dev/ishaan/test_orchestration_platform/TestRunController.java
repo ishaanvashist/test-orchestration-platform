@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/test-runs")
 public class TestRunController {
 
-    private static final int MAX_PAGE_SIZE = 50;                            // hard limit, regardless of what's requested
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final TestRunService testRunService;
 
@@ -26,11 +26,12 @@ public class TestRunController {
     }
 
     @GetMapping
-    public Page<TestRun> getAllTestRuns(Pageable pageable) {
+    public Page<TestRun> getAllTestRuns(Pageable pageable,
+                                        @RequestParam(required = false) String pipelineName) {
         Pageable safePageable = pageable.getPageSize() > MAX_PAGE_SIZE
                 ? PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort())
                 : pageable;
-        return testRunService.getAllTestRuns(safePageable);
+        return testRunService.getAllTestRuns(safePageable, pipelineName);
     }
 
     @GetMapping("/{id}")

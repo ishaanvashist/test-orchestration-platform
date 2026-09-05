@@ -63,7 +63,10 @@ public class TestRunService {
         return testRun;
     }
 
-    public Page<TestRun> getAllTestRuns(Pageable pageable) {
+    public Page<TestRun> getAllTestRuns(Pageable pageable, String pipelineName) {
+        if (pipelineName != null && !pipelineName.isBlank()) {
+            return testRunRepository.findByPipelineNameContainingIgnoreCase(pipelineName, pageable);
+        }
         return testRunRepository.findAll(pageable);
     }
 
