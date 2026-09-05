@@ -3,6 +3,8 @@ package dev.ishaan.test_orchestration_platform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,7 +55,7 @@ public class TestRunService {
             testResult.setPassed(resultRequest.isPassed());
             testResultRepository.save(testResult);
 
-            cacheEvictionService.evictTestHistoryCache(resultRequest.getTestName());  // genuine cross-object call, correctly proxied
+            cacheEvictionService.evictTestHistoryCache(resultRequest.getTestName());
         }
 
         logger.info("Successfully ingested {} results for run id {}", request.getResults().size(), testRun.getId());
@@ -61,8 +63,8 @@ public class TestRunService {
         return testRun;
     }
 
-    public List<TestRun> getAllTestRuns() {
-        return testRunRepository.findAll();
+    public Page<TestRun> getAllTestRuns(Pageable pageable) {
+        return testRunRepository.findAll(pageable);
     }
 
     public TestRun getTestRunById(Long id) {

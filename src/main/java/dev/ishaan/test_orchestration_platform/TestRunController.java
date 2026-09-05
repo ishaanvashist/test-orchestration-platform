@@ -1,14 +1,17 @@
 package dev.ishaan.test_orchestration_platform;
 
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/test-runs")
 public class TestRunController {
+
+    private static final int MAX_PAGE_SIZE = 50;                            // hard limit, regardless of what's requested
 
     private final TestRunService testRunService;
 
@@ -23,8 +26,11 @@ public class TestRunController {
     }
 
     @GetMapping
-    public List<TestRun> getAllTestRuns() {
-        return testRunService.getAllTestRuns();
+    public Page<TestRun> getAllTestRuns(Pageable pageable) {
+        Pageable safePageable = pageable.getPageSize() > MAX_PAGE_SIZE
+                ? PageRequest.of(pageable.getPageNumber(), MAX_PAGE_SIZE, pageable.getSort())
+                : pageable;
+        return testRunService.getAllTestRuns(safePageable);
     }
 
     @GetMapping("/{id}")
