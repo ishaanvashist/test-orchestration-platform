@@ -72,7 +72,7 @@ public class TestRunService {
 
     public TestRun getTestRunById(Long id) {
         return testRunRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Test run not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Test run not found with id: " + id));  // now returns a proper 404, not a generic 500
     }
 
     @Cacheable(value = "testHistory", key = "#testName")
@@ -81,7 +81,7 @@ public class TestRunService {
         logger.info("Fetching test history from DATABASE for: {}", testName);
 
         TestCase testCase = testCaseRepository.findByName(testName)
-                .orElseThrow(() -> new RuntimeException("Test not found with name: " + testName));
+                .orElseThrow(() -> new ResourceNotFoundException("Test not found with name: " + testName));  // now returns a proper 404, not a generic 500
 
         List<TestResult> history = testResultRepository.findByTestCaseIdWithRun(testCase.getId());
 
