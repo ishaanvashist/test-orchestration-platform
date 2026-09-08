@@ -1,6 +1,8 @@
 <configuration>
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>correlationId</includeMdcKeyName>   <!-- tells the JSON encoder to include this specific MDC value in every log line -->
+        </encoder>
     </appender>
 
     <root level="INFO">
