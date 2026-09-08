@@ -30,7 +30,12 @@ Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with 
 - [x] Rate limiting — login endpoint capped via Bucket4j (5 attempts/minute per IP), tested by hammering the endpoint
 - [ ] JWT refresh tokens
 - [x] Secrets management audit — JWT signing key fixed to use environment variable, no longer regenerates on restart
-- [ ] Full OWASP self-audit documented
+- [x] Full OWASP self-audit documented — 6 of 8 findings fixed with real code, 2 deferred (dependency scanning, CI integrity verification)
+- [x] Redis caching (Cache-Aside) on flakiness history endpoint, with Evict-on-Write invalidation
+- [x] Pagination, filtering, and sorting on test-runs list endpoint, with a max page size cap
+- [x] Proper 404 error handling via GlobalExceptionHandler (closed a gap open since Day 27)
+- [x] Structured JSON logging + correlation IDs for request tracing
+- [ ] API versioning (/api/v1/) — deliberately deferred, no real external consumers yet
 
 ## Planned Endpoints
 
@@ -83,7 +88,6 @@ Implemented using Bucket4j's token bucket algorithm — each IP gets a bucket of
 ### Secrets Management & Encryption
 No secrets belong in source code or committed config — following the same environment-variable pattern established for `task-api`'s database credentials (Day 29). Applied here to fix a real gap found during the OWASP audit: the JWT signing key was regenerating randomly on every app restart (a Cryptographic Failure), silently invalidating every issued token. Fixed by deriving the key from a `JWT_SECRET` environment variable (with a clearly-marked, dev-only fallback for local use), so the same key persists across restarts — verified by confirming a token issued before a restart still works correctly after one. Also covered encryption in transit (TLS/HTTPS, already in use via Neon's `sslmode=require`) vs. encryption at rest (database-level) as two genuinely separate protections — one covers data while traveling, the other while stored, and neither substitutes for the other.
 
-
 ## Security
 
 - **Authentication:** JWT-based, with role-based authorization (`USER`/`ADMIN`). Test run creation is restricted to `ADMIN`.
@@ -92,3 +96,24 @@ No secrets belong in source code or committed config — following the same envi
 - **Input validation:** `@PastOrPresent` on run timestamps, `@Size` limits on test names.
 - **Logging:** failed login attempts logged with username and source IP.
 - **OWASP Top 10 (2025) self-audit:** 6 of 8 findings fixed (see Concepts Learned for full detail). Open: dependency vulnerability scanning, CI dependency integrity verification — both require build-process tooling, not application code.
+
+### Redis Caching (Cache-Aside)
+Implemented Cache-Aside on `getTestHistory` — `@Cacheable` checks Redis first; on a miss, queries Postgres and saves the result. Required a `CacheManager` bean (`CacheConfig.java`) explicitly wiring Spring's cache abstraction to Redis, plus a Jackson `ObjectMapper` configured with `JavaTimeModule` (for `LocalDateTime`) and default typing (so cached objects deserialize back to their real class, not a generic `LinkedHashMap`).
+
+### Cache Invalidation — Evict-on-Write
+Chose Evict-on-Write over TTL specifically because `ingestTestRun` is the single, only place new test data is ever written — meaning eviction logic placed there catches every staleness case with zero gaps, unlike TTL's arbitrary waiting window. `@CacheEvict` on a dedicated `CacheEvictionService`, called per-result from `ingestTestRun`. Hit and fixed a real self-call proxy bypass bug: calling the evict method from within the same class silently skipped Spring's caching annotation entirely, even though the method's own log line still printed — only caught by checking Redis directly (`KEYS "*"`), not by trusting the log.
+
+### DTOs — The Full "Why"
+Beyond the established pattern: entities are never exposed directly for three reasons — security (every field gets serialized, including `password`, even hashed), flexibility (API shape doesn't have to match the database schema, e.g. `TestFlakinessResponse` combines calculated and relational data), and decoupling (internal schema changes stay internal). Evaluated MapStruct vs. manual mapping; kept manual mapping, since the project's DTOs are still small enough that the tradeoff doesn't favor a new dependency yet.
+
+### API Versioning
+Understood why `/api/v1/...` matters — introducing a new version alongside an old one, rather than breaking every existing consumer of a changed endpoint. Deliberately decided not to apply it yet, since the project currently has zero real external consumers — a reasoned, documented decision, not an oversight.
+
+### Pagination, Filtering, Sorting
+Added `Pageable`-based pagination to `GET /api/test-runs`, with an explicit, hardcoded `MAX_PAGE_SIZE` cap (50) — a real gap self-identified after realizing pagination alone doesn't stop someone from simply requesting an enormous page size. Filtering by `pipelineName` (partial, case-insensitive match) and sorting (via `Pageable`'s built-in support) added alongside it.
+
+### Proper 404 Error Handling
+Closed a real gap open since Day 27: `getTestRunById` and `getTestHistory` previously threw plain `RuntimeException` on "not found," producing a misleading generic `500`. Added `ResourceNotFoundException` (still a `RuntimeException`, preserving `@Transactional` rollback) and a `@RestControllerAdvice`-based `GlobalExceptionHandler`, catching it globally and returning a proper `404` — without needing try/catch in every controller.
+
+### Structured (JSON) Logging + Correlation IDs
+Switched console logging from plain text to JSON, via `logstash-logback-encoder` and a `logback-spring.xml` config — enabling precise, field-based log search instead of fuzzy text matching. Added correlation IDs: a `CorrelationIdFilter` generates a UUID per request, stores it in MDC (a request-scoped storage every log line automatically includes), and clears it in a `finally` block to prevent stale IDs leaking into a reused thread's next request. Verified live: two separate requests produced genuinely different correlation IDs, while each request's own log lines (across different classes) shared one identical ID.
