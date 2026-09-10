@@ -35,6 +35,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login").permitAll()              // login itself needs no token
                         .requestMatchers("/error").permitAll()                       // internal error path, no token available here
                         .requestMatchers("/actuator/**").permitAll()                 // health/metrics checks — no token available for monitoring tools
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()  // Swagger's docs data and UI page
                         .requestMatchers(HttpMethod.POST, "/api/test-runs").hasRole("ADMIN")  // only admins can create runs
                         .anyRequest().authenticated()                                 // everything else just requires login
                 )
