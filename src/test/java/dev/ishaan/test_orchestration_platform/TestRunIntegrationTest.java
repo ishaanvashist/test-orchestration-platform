@@ -62,4 +62,43 @@ class TestRunIntegrationTest {
                 .andExpect(status().isForbidden());  // no token provided — should be rejected
     }
 
+    @Test
+    void ingestTestRun_withValidToken_createsNewRunSuccessfully() throws Exception {
+        // Step 1: log in to get a real token
+        String loginBody = """
+                {"username": "admin", "password": "password123"}
+                """;
+
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Step 2: pull the token out of the JSON response
+        String token = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(loginResponse)
+                .get("token")
+                .asText();
+
+        // Step 3: use the token to ingest a real run
+        String requestBody = """
+                {
+                    "pipelineName": "Integration Test Pipeline",
+                    "ranAt": "2026-09-13T10:00:00",
+                    "results": [
+                        {"testName": "test_example", "passed": true}
+                    ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/test-runs")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated());
+    }
+
 }
