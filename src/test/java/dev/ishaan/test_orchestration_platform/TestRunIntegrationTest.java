@@ -15,6 +15,7 @@ import org.testcontainers.utility.DockerImageName;
 import org.springframework.http.MediaType;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 @SpringBootTest                                                    // starts your real, full Spring app for this test
 @AutoConfigureMockMvc                                               // gives us a way to send simulated HTTP requests
@@ -135,6 +136,50 @@ class TestRunIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(badRequestBody))
                 .andExpect(status().isBadRequest());
+    }
+
+    private String getAdminToken() throws Exception {
+        String loginBody = """
+            {"username": "admin", "password": "password123"}
+            """;
+
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(loginResponse)
+                .get("token")
+                .asText();
+    }
+
+    @Test
+    void getTestRunById_withNonExistentId_returnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/test-runs/999999")
+                        .header("Authorization", "Bearer " + getAdminToken()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void ingestTestRun_withInvalidToken_returnsForbidden() throws Exception {
+        String requestBody = """
+            {
+                "pipelineName": "Should Not Work",
+                "ranAt": "2026-09-15T10:00:00",
+                "results": [
+                    {"testName": "test_example", "passed": true}
+                ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/test-runs")
+                        .header("Authorization", "Bearer this.is.not.a.real.token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden());
     }
 
 }
