@@ -101,4 +101,40 @@ class TestRunIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    @Test
+    void ingestTestRun_withMissingPipelineName_returnsBadRequest() throws Exception {
+        // login first, same as before
+        String loginBody = """
+                {"username": "admin", "password": "password123"}
+                """;
+
+        String loginResponse = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(loginResponse)
+                .get("token")
+                .asText();
+
+        // deliberately missing "pipelineName"
+        String badRequestBody = """
+                {
+                    "ranAt": "2026-09-15T10:00:00",
+                    "results": [
+                        {"testName": "test_example", "passed": true}
+                    ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/test-runs")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(badRequestBody))
+                .andExpect(status().isBadRequest());
+    }
+
 }
