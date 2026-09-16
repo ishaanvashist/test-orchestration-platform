@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())                                    // not needed for a token-based API
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/").permitAll()                            // simple root status message, no token needed
                         .requestMatchers("/api/auth/login").permitAll()              // login itself needs no token
                         .requestMatchers("/error").permitAll()                       // internal error path, no token available here
                         .requestMatchers("/actuator/**").permitAll()                 // health/metrics checks — no token available for monitoring tools
