@@ -2,6 +2,8 @@
 
 A backend system that receives automated test results from CI pipelines, stores them, and tracks test flakiness over time.
 
+**Live:** https://test-orchestration-platform.onrender.com
+
 ## Problem Statement
 
 CI pipelines run automated tests constantly, but results usually just disappear into individual pipeline logs — nobody has a central place to track patterns over time. One of the most costly patterns to miss is **flaky tests** — tests that fail unpredictably, not because the code is broken, but because the test itself is unreliable. Without historical tracking, teams waste time re-investigating the same flaky tests repeatedly, or worse, start ignoring real failures because "that test always randomly fails anyway."
@@ -16,7 +18,57 @@ This project solves that by giving every test run a permanent home, and letting 
 
 ## Database Setup
 
-Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with other local projects). Run `docker compose up` to start it. Deployed instance uses Neon (managed Postgres), configured via environment variables with local fallback.
+Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with other local projects). Run `docker compose up` to start it locally. Deployed instance uses Neon (managed Postgres), configured via environment variables with local fallback.
+
+## Deployment
+
+Live at: **https://test-orchestration-platform.onrender.com**
+
+- **App hosting:** Render (Docker-based Web Service, free tier)
+- **Database:** Neon (managed Postgres, free tier)
+- **Cache:** Upstash (managed Redis, free tier, TLS-secured)
+- **Secrets:** all database credentials, JWT signing key, and admin credentials injected via Render environment variables — nothing sensitive committed to source
+
+## Architecture
+
+```
+                    CI Pipeline
+                  (webhook POST)
+                        |
+                        v
+              JwtFilter / SecurityConfig
+              (role-based auth: USER/ADMIN)
+                        |
+                        v
+                    Controllers
+              (TestRun / TestCase / Auth)
+                        |
+                        v
+                  Service Layer
+        (ingest, eviction, flakiness calc)
+                    /        \
+                   v          v
+             Postgres       Redis
+             (Neon)         (Upstash)
+          source of        cache for
+            truth          history reads
+```
+
+## Technology Choices
+
+- **Spring Boot 4.1 / Java 21** — matches the rest of this project's roadmap; modern LTS Java with records, pattern matching available where useful.
+- **PostgreSQL over NoSQL** — enforced foreign keys are a deliberate fit, since flakiness calculation depends on `TestResult` rows never silently orphaning from their `TestRun`/`TestCase`.
+- **Redis (Cache-Aside) over no caching** — `getTestHistory` recalculates pass rate across full history on every call; caching avoids repeated, identical database work for a read-heavy endpoint.
+- **JWT over session-based auth** — stateless, avoids server-side session storage, fits a service other systems (CI pipelines) call programmatically rather than a human-driven browser session.
+- **Docker deployment over a native buildpack** — Render has no native Java runtime; Docker was the only path, using a multi-stage build (Maven image to compile, slim JRE image to run) to keep the final image lean.
+
+## Trade-offs Consciously Made
+
+- **No API versioning yet** — `/api/v1/` deliberately deferred; the cost of adding it now (renaming live routes) outweighs the benefit with zero real external consumers.
+- **Manual DTO mapping over MapStruct** — DTOs are still small enough that a new dependency isn't justified yet.
+- **TTL not used for caching** — Evict-on-Write chosen instead, since `ingestTestRun` is the single write path, giving zero-gap staleness coverage without an arbitrary wait window.
+- **Dependency scanning and CI integrity verification deferred** — both require build-process tooling beyond this project's current scope, documented honestly as open items rather than silently skipped.
+- **Free-tier hosting across three separate providers (Render/Neon/Upstash)** — introduces slightly more network latency between services than a single-provider setup, but keeps the entire deployment genuinely free for a portfolio project.
 
 ## Progress
 
@@ -36,6 +88,8 @@ Uses its own separate PostgreSQL instance (port 5433, to avoid conflicting with 
 - [x] Proper 404 error handling via GlobalExceptionHandler (closed a gap open since Day 27)
 - [x] Structured JSON logging + correlation IDs for request tracing
 - [ ] API versioning (/api/v1/) — deliberately deferred, no real external consumers yet
+- [x] Deployed to production (Render + Neon + Upstash), verified end-to-end (login, ingest, cache eviction all confirmed live)
+- [x] Dockerfile with multi-stage build for containerized deployment
 
 ## Planned Endpoints
 
@@ -69,7 +123,7 @@ SQL's enforced foreign key constraints are a deliberate fit for this project spe
 Audited against the current OWASP Top 10 on Day 36. All 8 real findings, with final status:
 
 - **Broken Access Control** — **Fixed.** Added role-based authorization (`USER`/`ADMIN`); test run creation now requires the `ADMIN` role, enforced via a role embedded in the JWT and checked in `SecurityConfig`.
-- **Security Misconfiguration** — **Fixed.** Seed admin password moved to `SEED_ADMIN_PASSWORD` environment variable, following the same pattern as `JWT_SECRET` and database credentials.
+- **Security Misconfiguration** — **Fixed.** Seed admin password moved to `ADMIN_PASSWORD` environment variable, following the same pattern as `JWT_SECRET` and database credentials.
 - **Software Supply Chain Failures** — **Deferred, documented.** Requires a dependency-scanning tool (e.g. OWASP Dependency-Check) added to the build process — a setup task, not an application code change. Not yet implemented.
 - **Cryptographic Failures** — **Fixed** (Day 39). JWT signing key now persists across restarts via `JWT_SECRET` environment variable, instead of regenerating randomly on every startup.
 - **Insecure Design** — **Fixed** (Day 38). Login endpoint rate-limited via Bucket4j (5 attempts/minute per IP).
@@ -87,15 +141,6 @@ Implemented using Bucket4j's token bucket algorithm — each IP gets a bucket of
 
 ### Secrets Management & Encryption
 No secrets belong in source code or committed config — following the same environment-variable pattern established for `task-api`'s database credentials (Day 29). Applied here to fix a real gap found during the OWASP audit: the JWT signing key was regenerating randomly on every app restart (a Cryptographic Failure), silently invalidating every issued token. Fixed by deriving the key from a `JWT_SECRET` environment variable (with a clearly-marked, dev-only fallback for local use), so the same key persists across restarts — verified by confirming a token issued before a restart still works correctly after one. Also covered encryption in transit (TLS/HTTPS, already in use via Neon's `sslmode=require`) vs. encryption at rest (database-level) as two genuinely separate protections — one covers data while traveling, the other while stored, and neither substitutes for the other.
-
-## Security
-
-- **Authentication:** JWT-based, with role-based authorization (`USER`/`ADMIN`). Test run creation is restricted to `ADMIN`.
-- **Rate limiting:** login endpoint capped at 5 attempts/minute per IP (Bucket4j).
-- **Secrets:** JWT signing key and seed admin password both externalized via environment variables (`JWT_SECRET`, `SEED_ADMIN_PASSWORD`), never hardcoded.
-- **Input validation:** `@PastOrPresent` on run timestamps, `@Size` limits on test names.
-- **Logging:** failed login attempts logged with username and source IP.
-- **OWASP Top 10 (2025) self-audit:** 6 of 8 findings fixed (see Concepts Learned for full detail). Open: dependency vulnerability scanning, CI dependency integrity verification — both require build-process tooling, not application code.
 
 ### Redis Caching (Cache-Aside)
 Implemented Cache-Aside on `getTestHistory` — `@Cacheable` checks Redis first; on a miss, queries Postgres and saves the result. Required a `CacheManager` bean (`CacheConfig.java`) explicitly wiring Spring's cache abstraction to Redis, plus a Jackson `ObjectMapper` configured with `JavaTimeModule` (for `LocalDateTime`) and default typing (so cached objects deserialize back to their real class, not a generic `LinkedHashMap`).
@@ -117,3 +162,18 @@ Closed a real gap open since Day 27: `getTestRunById` and `getTestHistory` previ
 
 ### Structured (JSON) Logging + Correlation IDs
 Switched console logging from plain text to JSON, via `logstash-logback-encoder` and a `logback-spring.xml` config — enabling precise, field-based log search instead of fuzzy text matching. Added correlation IDs: a `CorrelationIdFilter` generates a UUID per request, stores it in MDC (a request-scoped storage every log line automatically includes), and clears it in a `finally` block to prevent stale IDs leaking into a reused thread's next request. Verified live: two separate requests produced genuinely different correlation IDs, while each request's own log lines (across different classes) shared one identical ID.
+
+### Test Coverage — Integration Testing with Testcontainers
+Built the project's first real automated tests, using Testcontainers to spin up genuinely temporary, disposable Postgres and Redis instances per test run — never touching real, local, or production data. Covers: unauthenticated rejection (403), a full successful ingest with real login (201), missing required field validation (400), a non-existent resource (404), and an invalid token (403) — deliberately distinct from the missing-token case, since each exercises a different code path inside `JwtFilter`.
+
+### Containerized Deployment
+Render has no native Java runtime, so deployment required a Docker-based multi-stage build: a full Maven+JDK image compiles the app, and only the finished `.jar` gets copied into a second, slim JRE-only image — keeping the deployed container smaller and avoiding shipping build tools that are never needed at runtime.
+
+## Security
+
+- **Authentication:** JWT-based, with role-based authorization (`USER`/`ADMIN`). Test run creation is restricted to `ADMIN`.
+- **Rate limiting:** login endpoint capped at 5 attempts/minute per IP (Bucket4j).
+- **Secrets:** JWT signing key, database credentials, and admin credentials all externalized via environment variables (`JWT_SECRET`, `DATABASE_*`, `ADMIN_USERNAME`/`ADMIN_PASSWORD`), never hardcoded.
+- **Input validation:** `@PastOrPresent` on run timestamps, `@Size` limits on test names.
+- **Logging:** failed login attempts logged with username and source IP.
+- **OWASP Top 10 (2025) self-audit:** 6 of 8 findings fixed (see Concepts Learned for full detail). Open: dependency vulnerability scanning, CI dependency integrity verification — both require build-process tooling, not application code.
