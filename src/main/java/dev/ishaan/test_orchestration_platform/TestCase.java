@@ -1,10 +1,6 @@
 package dev.ishaan.test_orchestration_platform;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
 @Entity
@@ -16,6 +12,7 @@ public class TestCase {
     private Long id;
 
     @NotBlank(message = "Test name cannot be blank")
+    @Column(unique = true)
     private String name;
 
     public TestCase() {

@@ -77,7 +77,7 @@ class ConcurrentIngestTest {
 
         int failures = 0;
         for (Future<?> f : futures) {
-            try { f.get(); } catch (Exception e) { failures++; }     // count requests that threw an error
+            try { f.get(); } catch (Exception e) { failures++; System.out.println("FAILURE: " + e.getMessage()); }    // count requests that threw an error
         }
 
         long rows = testCaseRepository.findAll().stream()

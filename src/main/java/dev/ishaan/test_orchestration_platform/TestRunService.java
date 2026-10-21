@@ -42,12 +42,9 @@ public class TestRunService {
 
         for (TestResultRequest resultRequest : request.getResults()) {
 
+            testCaseRepository.insertIfMissing(resultRequest.getTestName());   // make sure the name exists, never crashes
             TestCase testCase = testCaseRepository.findByName(resultRequest.getTestName())
-                    .orElseGet(() -> {
-                        TestCase newCase = new TestCase();
-                        newCase.setName(resultRequest.getTestName());
-                        return testCaseRepository.save(newCase);
-                    });
+                    .orElseThrow();                                             // now fetch the one row that exists
 
             TestResult testResult = new TestResult();
             testResult.setTestRun(testRun);
