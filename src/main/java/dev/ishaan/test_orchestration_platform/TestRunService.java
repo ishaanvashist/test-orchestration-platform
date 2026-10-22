@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -40,7 +42,9 @@ public class TestRunService {
         testRun.setRanAt(request.getRanAt());
         testRun = testRunRepository.save(testRun);
 
-        for (TestResultRequest resultRequest : request.getResults()) {
+        List<TestResultRequest> sortedResults = new ArrayList<>(request.getResults());   // copy, so we don't change the caller's list
+        sortedResults.sort(Comparator.comparing(TestResultRequest::getTestName));           // same order for every run: alphabetical, so no deadlock
+        for (TestResultRequest resultRequest : sortedResults) {
 
             testCaseRepository.insertIfMissing(resultRequest.getTestName());   // make sure the name exists, never crashes
             TestCase testCase = testCaseRepository.findByName(resultRequest.getTestName())
